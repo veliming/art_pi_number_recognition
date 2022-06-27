@@ -1,9 +1,12 @@
 #include <rtthread.h>
+#include <rtdevice.h>
 #include <drv_dcmi.h>
 #include <lcd_port.h>
 #include "background.h"
 #include "Number.h"
 #include "cvlib.h"
+
+#define KEY_PIN GET_PIN(H, 4)
 
 #define THREAD_PRIORITY         25
 #define THREAD_TIMESLICE        5
@@ -23,16 +26,21 @@
 #define LCD_SHOW_OFFET_WIDTH   20
 #define LCD_SHOW_OFFET_HEIGHT  40
 
-#define ROI_S_X 69
-#define ROI_E_X 169
-#define ROI_S_Y 69
-#define ROI_E_Y 249
+//#define ROI_S_X 15
+//#define ROI_E_X 225
+//#define ROI_S_Y 55
+//#define ROI_E_Y 265
+
+#define ROI_S_X 35
+#define ROI_E_X 205
+#define ROI_S_Y 75
+#define ROI_E_Y 245
 
 //#define CONNECT_COMPONENT_SIZE_WIDTH   240
 //#define CONNECT_COMPONENT_SIZE_HEIGHT  320
 //#define CONNECT_COMPONENT_BUF_SIZE  CONNECT_COMPONENT_SIZE_WIDTH*CONNECT_COMPONENT_SIZE_HEIGHT
 //#define CONNECT_COMPONENT_STACK_SIZE 1024*200
-#define BINARY_THRESH 20
+#define BINARY_THRESH 10
 
 struct Rgb565BufStruct rgb565_data_buf;
 struct GrayBufStruct bin_data_buf;
@@ -64,9 +72,23 @@ static void lcd_show_number(struct drv_lcd_device *lcd,int showNum,int startX,in
        {
            uint16_t * d = (uint16_t*)lcd->lcd_info.framebuffer;
            d[LCD_SIZE_WIDTH*(i+startY) + j+startX] = NUMBER_BUF[showNum*2500+i*NUMBER_W+j];
-
        }
    }
+}
+
+static void lcd_show_2line(struct drv_lcd_device *lcd,int x,int y)
+{
+    uint16_t * d = (uint16_t*)lcd->lcd_info.framebuffer;
+    for(int i=x-10;i<x+10;i++)
+   {
+        d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + y+540] = 55555;
+   }
+
+    for(int j=y-10;j<y+10;j++)
+   {
+        d[LCD_SIZE_WIDTH*(x+LCD_SHOW_OFFET_HEIGHT) + j+540] = 55555;
+   }
+
 }
 
 static void lcd_show_gray(struct drv_lcd_device *lcd, struct GrayBufStruct* bin_data_buf,int startX,int startY)
@@ -99,7 +121,18 @@ static void lcd_show_rgb565(struct drv_lcd_device *lcd, struct Rgb565BufStruct* 
 
 static int rt_thread1_entry(void *parameter)
 {
-    int ccNum = 0;
+    rt_pin_mode(KEY_PIN, PIN_MODE_INPUT);
+    int display=1;
+    int xystate = 0;
+    int allx = 0;
+    int ally = 0;
+    int times = 0;
+    int realx=0;
+    int realy=0;
+
+    int fps=0;
+
+
     struct drv_lcd_device *lcd = (struct drv_lcd_device *)rt_device_find("lcd");
     lcd_background_init(lcd);
     if (RT_NULL == lcd)
@@ -136,8 +169,14 @@ static int rt_thread1_entry(void *parameter)
         rt_kprintf("ccStack malloc error!\n");
        return RT_ERROR;
     }
+
     while(1)
     {
+        //显示控制按键
+        if (rt_pin_read(KEY_PIN)==PIN_LOW) {
+            display=~display;
+            rt_thread_delay(100);
+        }
 
         DCMI_Start((uint32_t*)rgb565_data_buf.data,(uint32_t)RGB565_SIZE_WIDTH*RGB565_SIZE_HEIGHT/2);
         rt_err_t result = rt_sem_take(cpd_sem, RT_WAITING_FOREVER);
@@ -150,79 +189,177 @@ static int rt_thread1_entry(void *parameter)
         }
         else
         {
+            uint16_t * p = rgb565_data_buf.data;
+            uint16_t * d = (uint16_t*)lcd->lcd_info.framebuffer;
 
-            for(int i=0;i<rgb565_data_buf.width;i++)
+            for(int i=0;i<rgb565_data_buf.width;i++)//Y
             {
-               for(int j=0;j<rgb565_data_buf.height;j++)
+               for(int j=0;j<rgb565_data_buf.height;j++)//X
                {
-                   uint16_t * p = rgb565_data_buf.data;
-                   uint16_t * d = (uint16_t*)lcd->lcd_info.framebuffer;
+
 
                    uint16_t rgb565_pixel = p[(j+1)*rgb565_data_buf.width-i-1];
                    uint8_t gray_pixel_8 =rgb565_to_gray8(rgb565_pixel);
                    uint16_t gray_pixel_16 = gray8_to_gray16(gray_pixel_8);
                    uint8_t bin_pixel_8 =gray8_to_gray_bin(gray_pixel_8,BINARY_THRESH);
                    uint16_t bin_pixel_16 = gray8_to_gray16(bin_pixel_8);
-                   if((i == ROI_S_Y|| i == ROI_E_Y)&& j>ROI_S_X && j<ROI_E_X)
+
+                   if (display==1)
                    {
-                       gray_pixel_16 = 65535;
+                       if((i == ROI_S_Y|| i == ROI_E_Y)&& j>ROI_S_X && j<ROI_E_X)
+                       {
+                           rgb565_pixel = 23456;
+                           gray_pixel_16 = 65535;
+                           bin_pixel_16 = 23456;
+                       }
+                       if((j == ROI_S_X|| j == ROI_E_X)&& i>ROI_S_Y && i<ROI_E_Y)
+                       {
+                           rgb565_pixel = 23456;
+                           gray_pixel_16 = 65535;
+                           bin_pixel_16 = 23456;
+                       }
+                       if((j == (ROI_S_X+ROI_E_X)/2)&& i>((ROI_S_Y+ROI_E_Y)/2)-10 && i<((ROI_S_Y+ROI_E_Y)/2)+10)
+                       {
+                           gray_pixel_16 = 23456;
+                       }
+                       if((i == (ROI_S_Y+ROI_E_Y)/2)&& j>((ROI_S_X+ROI_E_X)/2)-10 && j<((ROI_S_X+ROI_E_X)/2)+10)
+                       {
+                           gray_pixel_16 = 23456;
+                       }
+
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+20] = rgb565_pixel;
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+280] = gray_pixel_16;
+
                    }
-                   if((j == ROI_S_X|| j == ROI_E_X)&& i>ROI_S_Y && i<ROI_E_Y)
+
+                   d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540] = bin_pixel_16;//必须执行
+
+
+               }
+            }//for1end
+
+
+            //方向1
+            for(int i=ROI_S_Y;i<ROI_E_Y;i++)//Y
+            {
+               for(int j=ROI_S_X;j<ROI_E_X;j++)//X
+               {
+                   if ((d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540-1]==23456||
+                       d[LCD_SIZE_WIDTH*(i-1+LCD_SHOW_OFFET_HEIGHT) + j+540]==23456)&&
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]==0    )
                    {
-                       gray_pixel_16 = 65535;
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]=23456;
                    }
+               }
 
+            }
 
-                   bin_data_buf.data[i*bin_data_buf.width+j] =bin_pixel_8;//原始图像和显示不是同个方向，在这里旋转一下，方面后面操作
+            //方向2
+            for(int i=ROI_S_Y;i<ROI_E_Y;i++)//Y
+            {
+               for(int j=ROI_E_X;j>ROI_S_X;j--)//X
+               {
+                   if ((d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540+1]==23456||
+                        d[LCD_SIZE_WIDTH*(i-1+LCD_SHOW_OFFET_HEIGHT) + j+540]==23456)&&
+                        d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]==0)
+                   {
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]=23456;
+                   }
+               }
 
-                   d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+20] = rgb565_pixel;
-                   d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+280] = gray_pixel_16;
-                   d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540] = bin_pixel_16;
+            }
+
+            //方向3
+            for(int i=ROI_E_Y;i>ROI_S_Y;i--)//Y
+            {
+               for(int j=ROI_S_X;j<ROI_E_X;j++)//X
+               {
+                   if ((d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540-1]==23456||
+                        d[LCD_SIZE_WIDTH*(i+1+LCD_SHOW_OFFET_HEIGHT) + j+540]==23456)&&
+                        d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]==0)
+                   {
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]=23456;
+                   }
+               }
+
+            }
+
+            //方向4
+            for(int i=ROI_E_Y;i>ROI_S_Y;i--)//Y
+            {
+               for(int j=ROI_E_X;j>ROI_S_X;j--)//X
+               {
+                   if ((d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540+1]==23456||
+                        d[LCD_SIZE_WIDTH*(i+1+LCD_SHOW_OFFET_HEIGHT) + j+540]==23456)&&
+                        d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]==0)
+                   {
+                       d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]=23456;
+                   }
+               }
+
+            }
+
+            //遍历黑色
+            for(int i=ROI_S_Y;i<ROI_E_Y;i++)//Y
+            {
+               for(int j=ROI_S_X;j<ROI_E_X;j++)//X
+               {
+                   if ((i>ROI_S_Y && i<ROI_E_Y)&&(j>ROI_S_X && j<ROI_E_X))
+                   {
+                       if (d[LCD_SIZE_WIDTH*(i+LCD_SHOW_OFFET_HEIGHT) + j+540]==0)
+                       {
+                           allx+=i;
+                           ally+=j;
+                           times++;
+                       }
+                   }
                }
             }
-            uint16_t coordinate[4];
-            uint16_t numText[100];
 
-            get_roi_img(&bin_data_buf,&roiGrayImg,ROI_S_X,ROI_S_Y,ROI_E_X,ROI_E_Y);
 
-            ccNum = extract_connect_omponents(&roiGrayImg,&ccGrayImg,ccStack,0,8);
-//
-            if(ccNum>0)
+            //过小目标排除
+            if (times>30)
             {
-
-                compute_componentBBox(&ccGrayImg,coordinate,0);
-                if(gray_malloc(&ccNumImg, coordinate[2]-coordinate[0]+1,coordinate[3]-coordinate[1]+1)==NULL){
-                    rt_kprintf("ccNumImg malloc error!\n");
-                    return RT_ERROR;
-                }
-                ccNum_save(&ccGrayImg,&ccNumImg,coordinate);
-                numText[0]=detect_digital(&ccNumImg,(254));
-                 lcd_show_number(lcd,numText[0],280,390);
-                rt_free(ccNumImg.data);
-
-//                for(int i=0;i<ccNum&&i<10;i++){
-//                    compute_componentBBox(&ccGrayImg,coordinate,i);
-//                    if(gray_malloc(&ccNumImg, coordinate[2]-coordinate[0]+1,coordinate[3]-coordinate[1]+1)==NULL){
-//                        rt_kprintf("ccNumImg malloc error!\n");
-//                        return RT_ERROR;
-//                    }
-//                    ccNum_save(&ccGrayImg,&ccNumImg,coordinate);
-//                    //lcd_show_gray(lcd,&roiGrayImg,540,40);
-//                    //lcd_show_gray(lcd,&ccNumImg,640,40);
-//                    numText[i]=detect_digital(&ccNumImg,(254-i));
-//                    //numText[i]+=48;
-//                     lcd_show_number(lcd,numText[i],280+i*51,390);
-//
-//                    rt_free(ccNumImg.data);
-//                }
+                realx=allx/times;
+                realy=ally/times;
+                xystate = 1;
             }
-            //lcd_show_rgb565(lcd,&rgb565_data_buf,540,40);
-            //lcd_show_gray(lcd,&roiGrayImg,540,40);
-            //lcd_show_gray(lcd,&bin_data_buf,540,40);
-            //lcd_show_number(lcd,numText[0],280,390);
-            lcd->parent.control(&lcd->parent, RTGRAPHIC_CTRL_RECT_UPDATE, RT_NULL);
-            //rt_thread_mdelay(100);
+            else
+            {
+                xystate = 0;
+            }
+
+            //输出
+            if (xystate==0) {
+                if (display==1) {
+                    lcd_show_number(lcd,xystate,280,390);
+                }
+
+            }
+            else
+            {
+                rt_kprintf("X%03dY%03dE\n",realx,realy);
+
+//                rt_kprintf("%d\n",fps);
+//                fps++;//帧数测速
+
+                if (display==1) {
+                    lcd_show_number(lcd,xystate,280,390);
+                    lcd_show_2line(lcd,realx,realy);
+                }
+
+            }
+
+            allx=0;ally=0;times=0;
+
+            if (display==1) {
+                lcd->parent.control(&lcd->parent, RTGRAPHIC_CTRL_RECT_UPDATE, RT_NULL);
+            }
+
+
         }
+
+
 
     }
     return RT_EOK;

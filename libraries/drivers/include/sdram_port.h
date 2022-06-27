@@ -23,9 +23,9 @@
 /* row bit numbers: 11, 12, 13 */
 #define SDRAM_ROW_BITS                  13
 /* cas latency clock number: 1, 2, 3 */
-#define SDRAM_CAS_LATENCY               2
+#define SDRAM_CAS_LATENCY               3
 /* read pipe delay: 0, 1, 2 */
-#define SDRAM_RPIPE_DELAY               0
+#define SDRAM_RPIPE_DELAY               1
 /* clock divid: 2, 3 */
 #define SDCLOCK_PERIOD                  2
 /* refresh rate counter */
@@ -39,9 +39,9 @@
 /* TXSR: 8x10ns */
 #define EXITSELFREFRESHDELAY            8
 /* TRAS: 5x10ns */
-#define SELFREFRESHTIME                 6
+#define SELFREFRESHTIME                 5
 /* TRC:  7x10ns */
-#define ROWCYCLEDELAY                   6
+#define ROWCYCLEDELAY                   7
 /* TWR:  2 Clock cycles */
 #define WRITERECOVERYTIME               2
 /* TRP:  2x10ns */

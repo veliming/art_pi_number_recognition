@@ -130,15 +130,17 @@ int rt_ov7670_init(void)
         LOG_E("ov7670 soft reset error!");
         return RT_ERROR;
     }
-    rt_thread_mdelay(20);
+    rt_thread_mdelay(100);
 
 
     read_reg(i2c_bus, 0x1c, 1, &OV7670_MIDH);
+    rt_thread_delay(10);
 	read_reg(i2c_bus, 0x1d, 1, &OV7670_MIDL);
+	rt_thread_delay(10);
 	read_reg(i2c_bus, 0x0A, 1, &OV7670_PID);
+	rt_thread_delay(10);
 	read_reg(i2c_bus, 0x0B, 1, &OV7670_VER);
-	//rt_kprintf("ov7670 read midh=%d\n",OV7670_MIDH);
-	//rt_kprintf("ov7670 read midl=%d\n",OV7670_MIDL);
+	rt_thread_delay(10);
 
     OV7670_MID = (OV7670_MIDH<<8&0xff00)|(OV7670_MIDL&0x00ff);
     rt_kprintf("ov7670 read mid=0x%04x\n",OV7670_MID);
@@ -150,7 +152,7 @@ int rt_ov7670_init(void)
          //return RT_ERROR;
      }
 
-    for(uint32_t i=0;i<OV7670_REG_NUM;i++)
+    for(uint32_t i=0;i<sizeof(OV7670_reg)/sizeof(OV7670_reg[0]);i++)
     {
         write_reg(i2c_bus, OV7670_reg[i][0], OV7670_reg[i][1]);
     }

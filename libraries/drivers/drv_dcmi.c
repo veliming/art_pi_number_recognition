@@ -139,16 +139,16 @@ void DCMI_Start(uint32_t* JpegBuffer,uint32_t pictureBufferLength)
 {
     //__HAL_DMA_ENABLE(&hdma_dcmi);
     //DCMI->CR |= DCMI_CR_CAPTURE;
-    __HAL_DCMI_ENABLE_IT(&rt_dcmi.DCMI_Handle, DCMI_IT_FRAME);//浣跨敤甯т腑鏂�
-    //memset((void *)JpegBuffer,0,sizeof(JpegBuffer));//鎶婃帴鏀禕UF娓呯┖
-    HAL_DCMI_Start_DMA(&rt_dcmi.DCMI_Handle, DCMI_MODE_SNAPSHOT,(uint32_t)JpegBuffer, pictureBufferLength);//鍚姩鎷嶇収
+    __HAL_DCMI_ENABLE_IT(&rt_dcmi.DCMI_Handle, DCMI_IT_FRAME);//使用帧中�?
+    //memset((void *)JpegBuffer,0,sizeof(JpegBuffer));//把接收BUF清空
+    HAL_DCMI_Start_DMA(&rt_dcmi.DCMI_Handle, DCMI_MODE_SNAPSHOT,(uint32_t)JpegBuffer, pictureBufferLength);//启动拍照
 
 }
 
 void DCMI_Stop(void)
 {
-    HAL_DCMI_Suspend(&rt_dcmi.DCMI_Handle);//鎷嶇収瀹屾垚锛屾寕璧稤CMI
-    HAL_DCMI_Stop(&rt_dcmi.DCMI_Handle);//鎷嶇収瀹屾垚锛屽仠姝MA浼犺緭
+    HAL_DCMI_Suspend(&rt_dcmi.DCMI_Handle);//拍照完成，挂起DCMI
+    HAL_DCMI_Stop(&rt_dcmi.DCMI_Handle);//拍照完成，停止DMA传输
 //    DCMI->CR &= ~(DCMI_CR_CAPTURE);
 //    while (DCMI->CR & 0x01);
 //    __HAL_DMA_DISABLE(&hdma_dcmi);

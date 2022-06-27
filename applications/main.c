@@ -21,12 +21,13 @@ int main(void)
     number_recognition_sample();
     rt_pin_mode(LED_PIN, PIN_MODE_OUTPUT);
 
+
     while(count++)
     {
         rt_thread_mdelay(500);
-//        rt_pin_write(LED_PIN, PIN_HIGH);
-//        rt_thread_mdelay(500);
-//        rt_pin_write(LED_PIN, PIN_LOW);
+        rt_pin_write(LED_PIN, PIN_HIGH);
+        rt_thread_mdelay(500);
+        rt_pin_write(LED_PIN, PIN_LOW);
     }
     return RT_EOK;
 }
